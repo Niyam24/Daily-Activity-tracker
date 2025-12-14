@@ -7,78 +7,129 @@
 
     <style>
         body {
-            font-family: Arial, sans-serif;
-            background: #f2f2f2;
+            font-family: "Segoe UI", Arial, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa, #c3cfe2);
             padding: 20px;
         }
 
         h1 {
             text-align: center;
+            margin-bottom: 20px;
         }
 
         .container {
-            max-width: 500px;
+            max-width: 600px;
             margin: auto;
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
         }
 
-        input {
-            width: 70%;
-            padding: 8px;
+        .add-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
         }
 
-        button {
-            padding: 8px 12px;
+        .add-box input {
+            flex: 1;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+        }
+
+        .add-box button {
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: none;
+            background: #4CAF50;
+            color: white;
             cursor: pointer;
         }
 
-        .activity {
+        .task {
+            background: white;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+        }
+
+        .task-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: #eee;
-            padding: 10px;
-            margin-top: 10px;
-            border-radius: 5px;
         }
 
-        .left {
+        .task-left {
             display: flex;
             align-items: center;
             gap: 10px;
         }
 
+        .task-name {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
         .streak {
-            font-size: 12px;
+            font-size: 13px;
             color: #ff6600;
         }
 
         .delete-btn {
-            background: red;
-            color: white;
+            background: none;
             border: none;
-            border-radius: 5px;
+            font-size: 18px;
+            cursor: pointer;
+        }
+
+        .note-box {
+            margin-top: 10px;
+        }
+
+        .note-box textarea {
+            width: 100%;
+            min-height: 60px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            padding: 8px;
+            resize: vertical;
+        }
+
+        .note-box button {
+            margin-top: 5px;
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: none;
+            background: #2196F3;
+            color: white;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        @media (max-width: 500px) {
+            .task-name {
+                font-size: 16px;
+            }
         }
     </style>
 </head>
 <body>
 
-<h1>✅ Daily Activity Tracker</h1>
+<h1>🗂️ Daily Activity Tracker</h1>
 
 <div class="container">
-    <input id="newActivity" placeholder="Enter new activity">
-    <button onclick="addActivity()">Add</button>
+
+    <div class="add-box">
+        <input id="newActivity" placeholder="Add new activity (Gym, Study...)">
+        <button onclick="addActivity()">Add</button>
+    </div>
 
     <div id="list"></div>
+
 </div>
 
 <script>
-    // 🔴 CHANGE THIS ONLY IF YOUR BACKEND URL CHANGES
     const API = "https://daily-activity-tracker.onrender.com";
 
-    // 🔔 Ask notification permission once
     if ("Notification" in window) {
         Notification.requestPermission();
     }
@@ -91,24 +142,33 @@
                 list.innerHTML = "";
 
                 data.forEach(activity => {
+                    const note = localStorage.getItem("note_" + activity.id) || "";
+
                     const div = document.createElement("div");
-                    div.className = "activity";
+                    div.className = "task";
 
                     div.innerHTML = `
-                        <div class="left">
-                            <input type="checkbox"
-                                ${activity.completed ? "checked" : ""}
-                                onchange="toggleActivity(${activity.id}, this.checked)">
-                            <span>${activity.name}</span>
-                            <span class="streak" id="streak-${activity.id}">🔥</span>
+                        <div class="task-header">
+                            <div class="task-left">
+                                <input type="checkbox"
+                                    ${activity.completed ? "checked" : ""}
+                                    onchange="toggleActivity(${activity.id}, this.checked)">
+                                <span class="task-name">${activity.name}</span>
+                                <span class="streak" id="streak-${activity.id}">🔥</span>
+                            </div>
+                            <button class="delete-btn"
+                                onclick="deleteActivity(${activity.id})">❌</button>
                         </div>
-                        <button class="delete-btn"
-                            onclick="deleteActivity(${activity.id})">❌</button>
+
+                        <div class="note-box">
+                            <textarea id="note-${activity.id}"
+                                placeholder="Optional note...">${note}</textarea>
+                            <button onclick="saveNote(${activity.id})">Save Note</button>
+                        </div>
                     `;
 
                     list.appendChild(div);
 
-                    // 🔥 Load streak for this activity
                     fetch(API + "/streak/" + activity.id)
                         .then(res => res.json())
                         .then(data => {
@@ -146,6 +206,7 @@
     }
 
     function deleteActivity(id) {
+        localStorage.removeItem("note_" + id);
         fetch(API + "/delete", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -153,30 +214,12 @@
         }).then(loadActivities);
     }
 
-    // 🔔 Daily reminder at 8:00 PM
-    function sendReminder() {
-        fetch(API + "/activities")
-            .then(res => res.json())
-            .then(data => {
-                const pending = data.filter(a => !a.completed);
-                if (pending.length > 0 && Notification.permission === "granted") {
-                    const names = pending.map(a => a.name).join(", ");
-                    new Notification("⏰ Activities Pending", {
-                        body: "You still need to complete: " + names
-                    });
-                }
-            });
+    function saveNote(id) {
+        const text = document.getElementById("note-" + id).value;
+        localStorage.setItem("note_" + id, text);
+        alert("Note saved!");
     }
 
-    // Check every minute
-    setInterval(() => {
-        const now = new Date();
-        if (now.getHours() === 20 && now.getMinutes() === 0) {
-            sendReminder();
-        }
-    }, 60000);
-
-    // Initial load
     loadActivities();
 </script>
 
