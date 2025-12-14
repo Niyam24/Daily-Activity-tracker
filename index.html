@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Daily Activity Tracker</title>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f2f2f2;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        .container {
+            max-width: 500px;
+            margin: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        input {
+            width: 70%;
+            padding: 8px;
+        }
+
+        button {
+            padding: 8px 12px;
+            margin-left: 5px;
+            cursor: pointer;
+        }
+
+        .activity {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #eee;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 5px;
+        }
+
+        .activity span {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .delete-btn {
+            background: red;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>✅ Daily Activity Tracker</h1>
+
+    <div class="container">
+
+        <input id="newActivity" placeholder="Enter new activity">
+        <button onclick="addActivity()">Add</button>
+
+        <div id="list"></div>
+
+    </div>
+
+    <script>
+        // 🔴 IMPORTANT: THIS MUST BE YOUR RENDER BACKEND URL
+        const API = "https://daily-activity-tracker.onrender.com";
+
+        function loadActivities() {
+            fetch(API + "/activities")
+                .then(response => response.json())
+                .then(data => {
+                    const list = document.getElementById("list");
+                    list.innerHTML = "";
+
+                    data.forEach(activity => {
+                        const div = document.createElement("div");
+                        div.className = "activity";
+
+                        div.innerHTML = `
+                            <span>
+                                <input type="checkbox" ${activity.completed ? "checked" : ""}
+                                    onchange="toggleActivity(${activity.id}, this.checked)">
+                                ${activity.name}
+                            </span>
+                            <button class="delete-btn"
+                                onclick="deleteActivity(${activity.id})">❌</button>
+                        `;
+
+                        list.appendChild(div);
+                    });
+                });
+        }
+
+        function addActivity() {
+            const name = document.getElementById("newActivity").value;
+            if (!name) return;
+
+            fetch(API + "/add", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ name })
+            }).then(() => {
+                document.getElementById("newActivity").value = "";
+                loadActivities();
+            });
+        }
+
+        function toggleActivity(id, completed) {
+            fetch(API + "/toggle", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    id: id,
+                    completed: completed ? 1 : 0
+                })
+            });
+        }
+
+        function deleteActivity(id) {
+            fetch(API + "/delete", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ id })
+            }).then(loadActivities);
+        }
+
+        // Load activities on page load
+        loadActivities();
+    </script>
+
+</body>
+</html>
