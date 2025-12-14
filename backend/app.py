@@ -101,4 +101,27 @@ import os
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+@app.route("/streak/<int:activity_id>")
+def get_streak(activity_id):
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT day, completed
+        FROM daily_status
+        WHERE activity_id = ?
+        ORDER BY day DESC
+    """, (activity_id,))
+
+    rows = cur.fetchall()
+    conn.close()
+
+    streak = 0
+    for row in rows:
+        if row["completed"] == 1:
+            streak += 1
+        else:
+            break
+
+    return jsonify({"streak": streak})
 
