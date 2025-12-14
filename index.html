@@ -3,14 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <title>Daily Activity Tracker</title>
-
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <style>
         body {
             font-family: Arial, sans-serif;
             background: #f2f2f2;
-            margin: 0;
             padding: 20px;
         }
 
@@ -33,7 +31,6 @@
 
         button {
             padding: 8px 12px;
-            margin-left: 5px;
             cursor: pointer;
         }
 
@@ -47,10 +44,15 @@
             border-radius: 5px;
         }
 
-        .activity span {
+        .left {
             display: flex;
             align-items: center;
             gap: 10px;
+        }
+
+        .streak {
+            font-size: 12px;
+            color: #ff6600;
         }
 
         .delete-btn {
@@ -63,89 +65,120 @@
 </head>
 <body>
 
-    <h1>✅ Daily Activity Tracker</h1>
+<h1>✅ Daily Activity Tracker</h1>
 
-    <div class="container">
+<div class="container">
+    <input id="newActivity" placeholder="Enter new activity">
+    <button onclick="addActivity()">Add</button>
 
-        <input id="newActivity" placeholder="Enter new activity">
-        <button onclick="addActivity()">Add</button>
+    <div id="list"></div>
+</div>
 
-        <div id="list"></div>
+<script>
+    // 🔴 CHANGE THIS ONLY IF YOUR BACKEND URL CHANGES
+    const API = "https://daily-activity-tracker.onrender.com";
 
-    </div>
+    // 🔔 Ask notification permission once
+    if ("Notification" in window) {
+        Notification.requestPermission();
+    }
 
-    <script>
-        // 🔴 IMPORTANT: THIS MUST BE YOUR RENDER BACKEND URL
-        const API = "https://daily-activity-tracker.onrender.com";
+    function loadActivities() {
+        fetch(API + "/activities")
+            .then(res => res.json())
+            .then(data => {
+                const list = document.getElementById("list");
+                list.innerHTML = "";
 
-        function loadActivities() {
-            fetch(API + "/activities")
-                .then(response => response.json())
-                .then(data => {
-                    const list = document.getElementById("list");
-                    list.innerHTML = "";
+                data.forEach(activity => {
+                    const div = document.createElement("div");
+                    div.className = "activity";
 
-                    data.forEach(activity => {
-                        const div = document.createElement("div");
-                        div.className = "activity";
+                    div.innerHTML = `
+                        <div class="left">
+                            <input type="checkbox"
+                                ${activity.completed ? "checked" : ""}
+                                onchange="toggleActivity(${activity.id}, this.checked)">
+                            <span>${activity.name}</span>
+                            <span class="streak" id="streak-${activity.id}">🔥</span>
+                        </div>
+                        <button class="delete-btn"
+                            onclick="deleteActivity(${activity.id})">❌</button>
+                    `;
 
-                        div.innerHTML = `
-                            <span>
-                                <input type="checkbox" ${activity.completed ? "checked" : ""}
-                                    onchange="toggleActivity(${activity.id}, this.checked)">
-                                ${activity.name}
-                            </span>
-                            <button class="delete-btn"
-                                onclick="deleteActivity(${activity.id})">❌</button>
-                        `;
+                    list.appendChild(div);
 
-                        list.appendChild(div);
-                    });
+                    // 🔥 Load streak for this activity
+                    fetch(API + "/streak/" + activity.id)
+                        .then(res => res.json())
+                        .then(data => {
+                            document.getElementById(
+                                `streak-${activity.id}`
+                            ).innerText = `🔥 ${data.streak}`;
+                        });
                 });
-        }
-
-        function addActivity() {
-            const name = document.getElementById("newActivity").value;
-            if (!name) return;
-
-            fetch(API + "/add", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({ name })
-            }).then(() => {
-                document.getElementById("newActivity").value = "";
-                loadActivities();
             });
-        }
+    }
 
-        function toggleActivity(id, completed) {
-            fetch(API + "/toggle", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    id: id,
-                    completed: completed ? 1 : 0
-                })
+    function addActivity() {
+        const name = document.getElementById("newActivity").value;
+        if (!name) return;
+
+        fetch(API + "/add", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name })
+        }).then(() => {
+            document.getElementById("newActivity").value = "";
+            loadActivities();
+        });
+    }
+
+    function toggleActivity(id, completed) {
+        fetch(API + "/toggle", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                id: id,
+                completed: completed ? 1 : 0
+            })
+        });
+    }
+
+    function deleteActivity(id) {
+        fetch(API + "/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id })
+        }).then(loadActivities);
+    }
+
+    // 🔔 Daily reminder at 8:00 PM
+    function sendReminder() {
+        fetch(API + "/activities")
+            .then(res => res.json())
+            .then(data => {
+                const pending = data.filter(a => !a.completed);
+                if (pending.length > 0 && Notification.permission === "granted") {
+                    const names = pending.map(a => a.name).join(", ");
+                    new Notification("⏰ Activities Pending", {
+                        body: "You still need to complete: " + names
+                    });
+                }
             });
-        }
+    }
 
-        function deleteActivity(id) {
-            fetch(API + "/delete", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({ id })
-            }).then(loadActivities);
+    // Check every minute
+    setInterval(() => {
+        const now = new Date();
+        if (now.getHours() === 20 && now.getMinutes() === 0) {
+            sendReminder();
         }
+    }, 60000);
 
-        // Load activities on page load
-        loadActivities();
-    </script>
+    // Initial load
+    loadActivities();
+</script>
 
 </body>
 </html>
